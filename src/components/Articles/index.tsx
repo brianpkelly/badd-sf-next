@@ -45,6 +45,7 @@ const GET_ARTICLES = gql`
           title
           date
           link
+					linkexternal
           source
           description
           featuredImage {
@@ -138,7 +139,7 @@ const Articles = () => {
 							<div className="d-flex justify-content-between align-items-center">
 								<div className="btn-group">
 									<a type="button" 
-									href={article.link} 
+									href={article.linkexternal} 
 									target="_blank" 
 									className="btn btn-sm btn-outline-secondary"
 									aria-label="Read article"
