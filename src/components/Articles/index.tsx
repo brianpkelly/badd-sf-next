@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { gql } from "@apollo/client";
+import { useQuery } from "@apollo/client/react";
 import Image from "next/image";
     
 const ArticlesUrl = '/badd-data/articles-v0001.json?date=9-20-2025';
@@ -34,84 +36,92 @@ const emptyArticle = {
 
 const pageSize = 6;
 
+const GET_ARTICLES = gql`
+  query GetArticles($first: Int!, $after: String) {
+    articles(first: $first, after: $after) {
+      edges {
+        node {
+          id
+          title
+          date
+          link
+          source
+          description
+          featuredImage {
+            node {
+              sourceUrl
+              altText
+            }
+          }
+        }
+        cursor
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
 
 const Articles = () => {
 
-	const [data, setData] = useState<IData>({date:'', items:[emptyArticle]});
-	const [dataDate, setDataDate] = useState('');
-	const [dataByPage, setDataByPage] = useState<IData>({date:'', items:[emptyArticle]});
-	const [currentPage, setCurrentPage] = useState(1);
-	const [showMoreButton, setShowMoreButton] = useState(true);
-	const [loading, setLoading] = useState(true);
-	
-	const setPaginatedData = (requestedPage:number, dataset:IData)=>{
-		const startIndex = 0;
-		const endIndex = startIndex + (pageSize * requestedPage);
-		const paginatedData:IArticle[] = dataset.items.slice(startIndex, endIndex);
-		
-		if (paginatedData && paginatedData.length !== 0) {
-			setDataByPage({date:dataDate, items:paginatedData});
+	const [articles, setArticles] = useState<IArticle[]>([]);
+	const [pageInfo, setPageInfo] = useState(null);
 
-			if ( requestedPage !== currentPage ) {
-				setCurrentPage( requestedPage );
-			}
-		}
-
-		if ( paginatedData.length === data.items.length ) {
-			setShowMoreButton(false);
-		}
-	};
-
-	const showMore = ()=>{
-		
-		const requestedPage = currentPage + 1;
-		setPaginatedData(requestedPage, data);
-	};
+	const { loading, error, data, fetchMore } = useQuery(GET_ARTICLES, {
+		variables: { first: pageSize, after: null }
+	});
 
 	useEffect(() => {
-	
-		const fetchData = async () => {
-			try {
-				const response = await fetch(ArticlesUrl);
+	  if (data?.articles?.edges) {
+	    setArticles(data.articles.edges.map((edge: any) => edge.node));
+	    setPageInfo(data.articles.pageInfo);
+	  }
+	}, [data]);
 
-				if (!response.ok) {
-					throw new Error(`HTTP error! status: ${response.status}`);
-				}
-				const json = await response.json();
-				json.items.reverse();
+	const loadMore = async () => {
+		const currentPageInfo = pageInfo;
 
-				setData(json);
-				setDataDate(json.date);
-				setLoading(false);
+		if (!currentPageInfo.hasNextPage) return;
 
-				setPaginatedData(1,json);
-			} catch (e) {
-				console.warn(e);
-				setLoading(false);
-			}
-		};
+		console.log("pageInfo:", currentPageInfo);
 
-		fetchData();
+		const { data: moreData } = await fetchMore({
+			variables: {
+				first: pageSize,
+				after: currentPageInfo.endCursor,
+			},
+		});
 
-	},[]);
+		if (moreData?.articles?.edges) {
+		setArticles((prev) => [
+			...prev,
+			...moreData.articles.edges.map((edge: any) => edge.node),
+		]);
+		}
+		setPageInfo(moreData.articles.pageInfo);
+	};
 
-	if (loading) {
-		return <p>Loading...</p>;
-	}
+	if (loading && articles.length === 0) return <p>Loading…</p>;
+	if (error) return <p>Error: {error.message}</p>;
 
 	return (
 	<div className="badd-articles">
 		<ul id="news-articles" className="row article-row" aria-label="news articles">
 
-			{dataByPage && dataByPage.items.map((article:IArticle) => (
+			{ articles && articles.map((article: IArticle) => {
+				// const article = edge.node;
+				const featuredImage = article.featuredImage?.node;
+				return (
 				<li key={article.id} className="col-md-4" aria-label="article">
 					<div className="card mb-4 box-shadow">
 						<div className="card-image-frame">
-							{ article.image && (<Image
-								src={article.image}
+							{ featuredImage && (<Image
+								src={featuredImage.sourceUrl}
 								width={1000}
 								height={800}
-								alt=""
+								alt={featuredImage.altText}
 								aria-hidden={true}
 								className="card-img-top article-image" 
 							/>) }
@@ -143,11 +153,14 @@ const Articles = () => {
 						</div>
 					</div>
 				</li>
-			))}
+				)
+		})}
 		</ul>
-		<p className="general-content">
-			{showMoreButton && (<button type="button" className="btn btn-md btn-outline-secondary" onClick={showMore} aria-label="Show more news articles above">More News Articles</button>)}
-		</p>
+		{pageInfo?.hasNextPage ? (
+			<p className="general-content">
+        		<button type="button" className="btn btn-md btn-outline-secondary" onClick={loadMore} aria-label="Show more news articles above">More News Articles</button>
+			</p>
+      ) : (<p></p>)}
 	</div>
     );
 

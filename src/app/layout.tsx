@@ -5,6 +5,7 @@ import "./globals.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 
 import BootstrapClient from "../components/BootstrapClient/BootstrapClient.js";
+import ApolloWrapper from "./apollo-provider.tsx";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -50,7 +51,7 @@ export default function RootLayout({
         height="0" width="0" style={{display:'none',visibility:'hidden'}}></iframe></noscript>
 
         <BootstrapClient />
-        {children}
+        <ApolloWrapper>{children}</ApolloWrapper>
       </body>
     </html>
   );
